@@ -1,7 +1,9 @@
 Binaries
+Build
 DerivedDataCache
 Intermediate
 Saved
 *.sdf
+*.opensdf
 *.sln
 *.suo
