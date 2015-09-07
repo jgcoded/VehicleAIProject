@@ -61,7 +61,7 @@ void UVehiclePathFollowingComponent::FollowPathSegment(float DeltaTime)
             float DeltaYaw = (RotatorToDestination - Owner->GetActorRotation()).Yaw;
             bool DestinationInFront = DeltaYaw - 70.0f <= EPSILON && DeltaYaw + 70.0f >= EPSILON;
 
-            float DesiredSteering = FMath::GetMappedRangeValue(FVector2D(-70, 70), FVector2D(-1.0f, 1.0f), DeltaYaw);
+            float DesiredSteering = FMath::GetMappedRangeValue(FVector2D(-180.0f, 180.0f), FVector2D(-1.0f, 1.0f), DeltaYaw);
 
             if (!DestinationInFront && DistanceToDestination < 1e3) // reverse
                 DesiredSteering = -DesiredSteering;
@@ -77,7 +77,7 @@ void UVehiclePathFollowingComponent::FollowPathSegment(float DeltaTime)
             float DesiredThrottle = 0.0f;
 
             if (DestinationInFront)
-                DesiredThrottle = FMath::Clamp(PercentDistanceLeft, 0.35f, 1.0f);
+                DesiredThrottle = FMath::Clamp(PercentDistanceLeft, 0.35f, 0.8f);
             else
                 DesiredThrottle = -0.5f; // default throttle when going in reverse
 

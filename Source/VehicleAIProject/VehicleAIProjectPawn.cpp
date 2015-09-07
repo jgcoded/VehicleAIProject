@@ -274,6 +274,8 @@ void AVehicleAIProjectPawn::Tick(float Delta)
 	// Pass the engine RPM to the sound component
 	float RPMToAudioScale = 2500.0f / GetVehicleMovement()->GetEngineMaxRotationSpeed();
 	EngineSoundComponent->SetFloatParameter(EngineAudioRPM, GetVehicleMovement()->GetEngineRotationSpeed()*RPMToAudioScale);
+
+    GetVehicleMovementComponent()->DrawDebugLines();
 }
 
 void AVehicleAIProjectPawn::BeginPlay()
