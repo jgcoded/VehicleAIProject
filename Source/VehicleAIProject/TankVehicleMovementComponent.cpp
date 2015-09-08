@@ -12,24 +12,7 @@
 UTankVehicleMovementComponent::UTankVehicleMovementComponent(const FObjectInitializer& ObjectInitializer)
 {
 #if WITH_VEHICLE
-    // From the Nvidia Tank snippet code:
-
-    /* {
-        6.0f,	//rise rate eANALOG_INPUT_ACCEL=0,
-        6.0f,	//rise rate eANALOG_INPUT_BRAKE,
-        6.0f,	//rise rate eANALOG_INPUT_HANDBRAKE,
-        2.5f,	//rise rate eANALOG_INPUT_STEER_LEFT,
-        2.5f,	//rise rate eANALOG_INPUT_STEER_RIGHT,
-        },
-        {
-        10.0f,	//fall rate eANALOG_INPUT_ACCEL=0
-        10.0f,	//fall rate eANALOG_INPUT_BRAKE_LEFT
-        10.0f,	//fall rate eANALOG_INPUT_BRAKE_RIGHT
-        5.0f,	//fall rate eANALOG_INPUT_THRUST_LEFT
-        5.0f	//fall rate eANALOG_INPUT_THRUST_RIGHT
-        }
-    */
-
+    // The following values are from the NVidia Tank snippet code:
     LeftThrustInputRate.RiseRate = 2.5f;
     RightThrustInputRate.RiseRate = 2.5f;
 
@@ -289,15 +272,6 @@ void UTankVehicleMovementComponent::SetupVehicle()
         }
     }
 
-    for (int32 WheelIdx = 0; WheelIdx < WheelSetups.Num(); ++WheelIdx)
-    {
-        const FWheelSetup& WheelSetup = WheelSetups[WheelIdx];
-        if (WheelSetup.BoneName == NAME_None)
-        {
-            return;
-        }
-    }
-
     // Setup the chassis and wheel shapes
     SetupVehicleShapes();
 
@@ -305,7 +279,7 @@ void UTankVehicleMovementComponent::SetupVehicle()
     SetupVehicleMass();
 
     // Setup the wheels
-    PxVehicleWheelsSimData* PWheelsSimData = PxVehicleWheelsSimData::allocate(4);
+    PxVehicleWheelsSimData* PWheelsSimData = PxVehicleWheelsSimData::allocate(WheelSetups.Num());
     SetupWheels(PWheelsSimData);
 
     // Setup drive data
@@ -331,6 +305,15 @@ void UTankVehicleMovementComponent::SetupVehicle()
             *PWheelsSimData, DriveData, WheelSetups.Num());
 
         PVehicleDriveTank->setToRestState();
+        PVehicleDriveTank->mDriveDynData.forceGearChange(PxVehicleGearsData::eFIRST);
+
+        PxVehicleDriveTankControlModel::Enum PxDriveTankControlModel =
+            PxVehicleDriveTankControlModel::eSTANDARD;
+
+        if (DriveTankControlModel == EDriveTankControlModel::Special)
+            PxDriveTankControlModel = PxVehicleDriveTankControlModel::eSPECIAL;
+
+        PVehicleDriveTank->setDriveModel(PxDriveTankControlModel);
         PWheelsSimData->free();
     });
 
@@ -387,7 +370,6 @@ void UTankVehicleMovementComponent::UpdateSimulation(float DeltaTime)
 
         // From the NVidia PhysX docs:https://developer.nvidia.com/sites/default/files/akamai/physx/Docs/Vehicles.html
         // Vehicle State Queries section.
-
         LeftWheelsSpeed = PVehicle->mWheelsDynData.getWheelRotationSpeed(0);
         RightTrackSpeed = PVehicle->mWheelsDynData.getWheelRotationSpeed(1);
 

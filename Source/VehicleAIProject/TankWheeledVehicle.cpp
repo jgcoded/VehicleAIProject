@@ -10,3 +10,8 @@ ATankWheeledVehicle::ATankWheeledVehicle(const FObjectInitializer& ObjectInitial
 
 }
 
+void ATankWheeledVehicle::Tick(float DeltaSeconds)
+{
+    GetVehicleMovementComponent()->DrawDebugLines();
+}
+
