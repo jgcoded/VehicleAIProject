@@ -371,7 +371,7 @@ void UTankVehicleMovementComponent::UpdateSimulation(float DeltaTime)
         // From the NVidia PhysX docs:https://developer.nvidia.com/sites/default/files/akamai/physx/Docs/Vehicles.html
         // Vehicle State Queries section.
         LeftWheelsSpeed = PVehicle->mWheelsDynData.getWheelRotationSpeed(0);
-        RightTrackSpeed = PVehicle->mWheelsDynData.getWheelRotationSpeed(1);
+        RightWheelsSpeed = PVehicle->mWheelsDynData.getWheelRotationSpeed(1);
 
     });
 }

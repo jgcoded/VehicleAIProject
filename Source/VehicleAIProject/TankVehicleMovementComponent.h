@@ -71,7 +71,7 @@ class VEHICLEAIPROJECT_API UTankVehicleMovementComponent : public UWheeledVehicl
         NVidia PhysX docs. Rad/sec.
     */
     UPROPERTY(BlueprintReadOnly, Transient, Category = "Track")
-    float RightTrackSpeed;
+    float RightWheelsSpeed;
 
     /* What the player has the left accelerator set to. */
     UPROPERTY(Transient)
