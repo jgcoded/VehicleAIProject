@@ -7,11 +7,4 @@
 ATankWheeledVehicle::ATankWheeledVehicle(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer.SetDefaultSubobjectClass<UTankVehicleMovementComponent>(VehicleMovementComponentName))
 {
-
 }
-
-void ATankWheeledVehicle::Tick(float DeltaSeconds)
-{
-    GetVehicleMovementComponent()->DrawDebugLines();
-}
-

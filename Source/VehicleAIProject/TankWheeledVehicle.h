@@ -13,6 +13,4 @@ class VEHICLEAIPROJECT_API ATankWheeledVehicle : public AWheeledVehicle
 {
     GENERATED_UCLASS_BODY()
 
-    virtual void Tick(float DeltaSeconds) override;
-
 };

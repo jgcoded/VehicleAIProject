@@ -25,6 +25,10 @@ UTankVehicleMovementComponent::UTankVehicleMovementComponent(const FObjectInitia
     LeftBrakeInputRate.FallRate = 10.0f;
     RightBrakeInputRate.FallRate = 10.0f;
 
+    RawLeftBrakeInput = 0;
+    RawRightBrakeInput = 0;
+    RawLeftThrottleInput = 0;
+    RawRightThrottleInput = 0;
 
     // Set up the engine to be more powerful but also more damped than the default engine.
     PxVehicleEngineData DefEngineData;
@@ -258,7 +262,7 @@ void SetupDriveHelper(const UTankVehicleMovementComponent* VehicleData, PxVehicl
 
 void UTankVehicleMovementComponent::SetupVehicle()
 {
-    if (!UpdatedPrimitive)
+    if (!UpdatedPrimitive || WheelSetups.Num() == 0)
     {
         return;
     }
@@ -335,7 +339,15 @@ void UTankVehicleMovementComponent::UpdateSimulation(float DeltaTime)
         // #TODO explore the different inputs for tanks
         // only use analog inputs for now, use digital later
         PxVehicleDriveTankRawInputData RawInputData((PxVehicleDriveTankControlModel::Enum)DriveTankControlModel.GetValue());
-        RawInputData.setAnalogAccel(1.0f);
+
+        if (fabs(RawLeftThrottleInput) > DELTA || fabs(RawRightThrottleInput) > DELTA)
+        {
+            RawInputData.setAnalogAccel(1.0f);
+        }
+        else
+        {
+            RawInputData.setAnalogAccel(0.0f);
+        }
         RawInputData.setAnalogLeftThrust(RawLeftThrottleInput);
         RawInputData.setAnalogRightThrust(RawRightThrottleInput);
         RawInputData.setAnalogLeftBrake(RawLeftBrakeInput);
@@ -378,3 +390,47 @@ void UTankVehicleMovementComponent::UpdateSimulation(float DeltaTime)
 
 #endif
 
+void UTankVehicleMovementComponent::RequestDirectMove(const FVector& MoveVelocity, bool bForceMaxSpeed)
+{
+    if (MoveVelocity.SizeSquared() < KINDA_SMALL_NUMBER)
+    {
+        StopActiveMovement();
+        return;
+    }
+
+    AActor* Owner = this->GetOwner();
+
+    if (Owner)
+    {
+        float DesiredHeading = FRotationMatrix::MakeFromX(MoveVelocity).Rotator().Yaw;
+        float CurrentHeading = Owner->GetActorRotation().Yaw;
+        float AngleToDestination = DesiredHeading - CurrentHeading;
+
+        float throttle = 0.1f;
+
+        if (AngleToDestination > 180.0f)
+            throttle = -throttle;
+
+        SetBrakeInput(0.0f, 0.0f);
+
+        if (AngleToDestination < 10.0f)
+        {
+            SetThrottleInput(0.5f, 0.5f);
+        }
+        else
+        {
+            SetThrottleInput(throttle, -throttle);
+        }
+    }
+}
+
+void UTankVehicleMovementComponent::StopActiveMovement()
+{
+    SetThrottleInput(0.0f, 0.0f);
+}
+
+void UTankVehicleMovementComponent::StopMovementImmediately()
+{
+    SetThrottleInput(0.0f, 0.0f);
+    SetBrakeInput(1.0f, 1.0f);
+}

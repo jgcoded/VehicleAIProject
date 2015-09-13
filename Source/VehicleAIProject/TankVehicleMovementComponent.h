@@ -18,7 +18,7 @@ enum EDriveTankControlModel
 };
 
 /**
- *
+ * Wrapper class over NVidia's PhysX PxVehicleDriveTank for Unreal Engine
  */
 UCLASS()
 class VEHICLEAIPROJECT_API UTankVehicleMovementComponent : public UWheeledVehicleMovementComponent
@@ -89,6 +89,8 @@ class VEHICLEAIPROJECT_API UTankVehicleMovementComponent : public UWheeledVehicl
     UPROPERTY(Transient)
     float RawRightBrakeInput;
 
+public:
+
     /**
         \brief Apply a throttle input to the left and right set of wheels.
     
@@ -125,5 +127,11 @@ protected:
     virtual void UpdateSimulation(float DeltaTime) override;
 
 #endif
+
+    virtual void RequestDirectMove(const FVector& MoveVelocity, bool bForceMaxSpeed) override;
+
+    virtual void StopActiveMovement() override;
+
+    virtual void StopMovementImmediately() override;
 
 };
