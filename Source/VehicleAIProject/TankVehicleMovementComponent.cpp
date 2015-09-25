@@ -9,6 +9,7 @@
 #include "PxVehicleDriveTank.h"
 #endif // WITH_VEHICLE
 
+
 UTankVehicleMovementComponent::UTankVehicleMovementComponent(const FObjectInitializer& ObjectInitializer)
 {
 #if WITH_VEHICLE
@@ -29,6 +30,9 @@ UTankVehicleMovementComponent::UTankVehicleMovementComponent(const FObjectInitia
     RawRightBrakeInput = 0;
     RawLeftThrottleInput = 0;
     RawRightThrottleInput = 0;
+
+    MaximumTankAISpeed = 45.0f; // 45 Km/h
+    MaximumTankAITurnRate = 10.0f; // 10 Deg/sec
 
     // Set up the engine to be more powerful but also more damped than the default engine.
     PxVehicleEngineData DefEngineData;
@@ -80,14 +84,116 @@ UTankVehicleMovementComponent::UTankVehicleMovementComponent(const FObjectInitia
 #endif // WITH_VEHICLE
 }
 
-// Copy-paste from WheeledVehicleMovementComponent4W
-
-void BackwardsConvertCm2ToM2(float& val, float defaultValue)
+void UTankVehicleMovementComponent::BackwardsConvertCm2ToM2(float& val, float defaultValue)
 {
     if (val != defaultValue)
     {
         val = Cm2ToM2(val);
     }
+}
+
+float AngleDiff(const double angleSrc, const double angleDest, const bool radiansFlag)
+{
+    float diff = angleDest - angleSrc;
+
+    if (radiansFlag)
+    {
+        while (diff > PI)
+        {
+            diff -= 2.0f*PI;
+        }
+        while (diff <= -PI)
+        {
+            diff += 2.0f*PI;
+        }
+    }
+    else
+    {
+        while (diff > 180.0f)
+        {
+            diff -= 360.0f;
+        }
+        while (diff <= -180.0f)
+        {
+            diff += 360.0f;
+        }
+    }
+
+    return diff;
+}
+
+void UTankVehicleMovementComponent::ApplyRequestedMove(float DeltaTime)
+{
+
+    if (!bHasRequestedVelocity)
+        return;
+
+    AActor* Owner = this->GetOwner();
+
+    if (!Owner)
+        return;
+
+    SetBrakeInput(0.0f, 0.0f);
+
+    // Update thrust
+
+    float ForwardSpeedKmH = GetForwardSpeed() * 3600.0f / 100000.0f;	//convert from cm/s to km/h
+
+    float SpeedError = MaximumTankAISpeed - ForwardSpeedKmH;
+
+    Thrust += UPIDController::NextValue(VelocityController, SpeedError, DeltaTime);
+
+    Thrust = FMath::Clamp(Thrust, 0.0f, VelocityController.UpperLimit);
+
+
+
+    // Update heading
+
+    float DesiredHeading = FRotationMatrix::MakeFromX(RequestedVelocity).Rotator().Yaw;
+    float CurrentHeading = Owner->GetActorRotation().Yaw;
+
+    float HeadingError = AngleDiff(CurrentHeading, DesiredHeading, false);
+
+    if (fabs(HeadingError) > 45.0f)
+        Thrust = 0.0f;
+
+    Heading = UPIDController::NextValue(HeadingController, HeadingError, DeltaTime);
+
+    Heading = FMath::Clamp(Heading, HeadingController.LowerLimit, HeadingController.UpperLimit);
+
+    if (fabs(HeadingError) < 2.0f)
+        Heading = 0.0f;
+
+    // Do saturated mixing for left and right side
+    // thrust values. This will provide us faster
+    // forward speeds.
+
+    float LeftThrottle = (Thrust + Heading) / 2.0f;
+    float RightThrottle = (Thrust - Heading) / 2.0f;
+
+    LeftThrottle /= (VelocityController.UpperLimit - VelocityController.LowerLimit) / 2.0f;
+    RightThrottle /= (VelocityController.UpperLimit - VelocityController.LowerLimit) / 2.0f;
+
+    LeftThrottle = FMath::Clamp(LeftThrottle, -1.0f, 1.0f);
+    RightThrottle = FMath::Clamp(RightThrottle, -1.0f, 1.0f);
+
+    //#ifdef NDEBUG
+    //    if (GEngine)
+    //    {
+    //        DrawDebugLine(GetWorld(), Owner->GetActorLocation(), Owner->GetActorLocation() + RequestedVelocity, FColor::Red, false, -1.0f, 0, 10.0f);
+    //        GEngine->AddOnScreenDebugMessage(0, 2.0f, FColor::Cyan, FString::Printf(TEXT("PID Thrust: %f"), Thrust));
+    //        GEngine->AddOnScreenDebugMessage(1, 2.0f, FColor::Cyan, FString::Printf(TEXT("PID Heading Rate: %f"), Heading));
+    //        GEngine->AddOnScreenDebugMessage(2, 2.0f, FColor::Cyan, FString::Printf(TEXT("Left Throttle: %f"), LeftThrottle));
+    //        GEngine->AddOnScreenDebugMessage(3, 2.0f, FColor::Cyan, FString::Printf(TEXT("Right Throttle: %f"), RightThrottle));
+    //        GEngine->AddOnScreenDebugMessage(4, 2.0f, FColor::Cyan, FString::Printf(TEXT("Current Velocity: %f Km/h"), ForwardSpeedKmH));
+    //        GEngine->AddOnScreenDebugMessage(5, 2.0f, FColor::Cyan, FString::Printf(TEXT("Heading Error: %f degrees"), HeadingError));
+    //        GEngine->AddOnScreenDebugMessage(6, 2.0f, FColor::Cyan, FString::Printf(TEXT("Speed Error: %f"), SpeedError));
+    //        //GEngine->AddOnScreenDebugMessage(7, 2.0f, FColor::Cyan, FString::Printf(TEXT("brake: %f"), brake));
+    //
+    //    }
+    //#endif
+
+    SetThrottleInput((float)LeftThrottle, (float)RightThrottle);
 }
 
 void UTankVehicleMovementComponent::Serialize(FArchive& Ar)
@@ -134,7 +240,7 @@ void UTankVehicleMovementComponent::SetThrottleInput(float LeftThrottle, float R
     {
         RawLeftThrottleInput = FMath::Clamp(LeftThrottle, 0.0f, 1.0f);
         RawRightThrottleInput = FMath::Clamp(RightThrottle, 0.0f, 1.0f);
-    } 
+    }
     else
     {
         RawLeftThrottleInput = FMath::Clamp(LeftThrottle, -1.0f, 1.0f);
@@ -177,22 +283,16 @@ void UTankVehicleMovementComponent::PostEditChangeProperty(struct FPropertyChang
 
 #if WITH_VEHICLE
 
-// Copy-paste from WheeledVehicleMovementComponent4W
-float FVehicleEngineData::FindPeakTorque() const
+void UTankVehicleMovementComponent::TickVehicle(float DeltaTime)
 {
-    // Find max torque
-    float PeakTorque = 0.f;
-    TArray<FRichCurveKey> TorqueKeys = TorqueCurve.GetRichCurveConst()->GetCopyOfKeys();
-    for (int32 KeyIdx = 0; KeyIdx < TorqueKeys.Num(); KeyIdx++)
-    {
-        FRichCurveKey& Key = TorqueKeys[KeyIdx];
-        PeakTorque = FMath::Max(PeakTorque, Key.Value);
-    }
-    return PeakTorque;
+    Super::TickVehicle(DeltaTime);
+
+    ApplyRequestedMove(DeltaTime);
 }
 
+
 // Helper to convert from Unreal Engine data to PhysX data
-void GetVehicleEngineSetup(const FVehicleEngineData& Setup, PxVehicleEngineData& PxSetup)
+static void GetVehicleEngineSetup(const FVehicleEngineData& Setup, PxVehicleEngineData& PxSetup)
 {
     PxSetup.mMOI = M2ToCm2(Setup.MOI);
     PxSetup.mMaxOmega = RPMToOmega(Setup.MaxRPM);
@@ -200,12 +300,19 @@ void GetVehicleEngineSetup(const FVehicleEngineData& Setup, PxVehicleEngineData&
     PxSetup.mDampingRateZeroThrottleClutchEngaged = M2ToCm2(Setup.DampingRateZeroThrottleClutchEngaged);
     PxSetup.mDampingRateZeroThrottleClutchDisengaged = M2ToCm2(Setup.DampingRateZeroThrottleClutchDisengaged);
 
-    float PeakTorque = Setup.FindPeakTorque(); // In Nm
+    float PeakTorque = 0.f; // In Nm
+
+    TArray<FRichCurveKey> TorqueKeys = Setup.TorqueCurve.GetRichCurveConst()->GetCopyOfKeys();
+    for (int32 KeyIdx = 0; KeyIdx < TorqueKeys.Num(); KeyIdx++)
+    {
+        FRichCurveKey& Key = TorqueKeys[KeyIdx];
+        PeakTorque = FMath::Max(PeakTorque, Key.Value);
+    }
+
     PxSetup.mPeakTorque = M2ToCm2(PeakTorque);	// convert Nm to (kg cm^2/s^2)
 
     // Convert from our curve to PhysX
     PxSetup.mTorqueCurve.clear();
-    TArray<FRichCurveKey> TorqueKeys = Setup.TorqueCurve.GetRichCurveConst()->GetCopyOfKeys();
     int32 NumTorqueCurveKeys = FMath::Min<int32>(TorqueKeys.Num(), PxVehicleEngineData::eMAX_NB_ENGINE_TORQUE_CURVE_ENTRIES);
     for (int32 KeyIdx = 0; KeyIdx < NumTorqueCurveKeys; KeyIdx++)
     {
@@ -388,49 +495,38 @@ void UTankVehicleMovementComponent::UpdateSimulation(float DeltaTime)
     });
 }
 
-#endif
-
 void UTankVehicleMovementComponent::RequestDirectMove(const FVector& MoveVelocity, bool bForceMaxSpeed)
 {
+    Super::RequestDirectMove(MoveVelocity, bForceMaxSpeed);
     if (MoveVelocity.SizeSquared() < KINDA_SMALL_NUMBER)
     {
-        StopActiveMovement();
+        SetThrottleInput(0.0f, 0.0f);
+        SetBrakeInput(1.0f, 1.0f);
         return;
     }
 
-    AActor* Owner = this->GetOwner();
-
-    if (Owner)
-    {
-        float DesiredHeading = FRotationMatrix::MakeFromX(MoveVelocity).Rotator().Yaw;
-        float CurrentHeading = Owner->GetActorRotation().Yaw;
-        float AngleToDestination = DesiredHeading - CurrentHeading;
-
-        float throttle = 0.1f;
-
-        if (AngleToDestination > 180.0f)
-            throttle = -throttle;
-
-        SetBrakeInput(0.0f, 0.0f);
-
-        if (AngleToDestination < 10.0f)
-        {
-            SetThrottleInput(0.5f, 0.5f);
-        }
-        else
-        {
-            SetThrottleInput(throttle, -throttle);
-        }
-    }
+    bHasRequestedVelocity = true;
+    RequestedVelocity = MoveVelocity;
 }
 
 void UTankVehicleMovementComponent::StopActiveMovement()
 {
+    Super::StopActiveMovement();
+    bHasRequestedVelocity = false;
+    UPIDController::Clear(VelocityController);
+    UPIDController::Clear(HeadingController);
     SetThrottleInput(0.0f, 0.0f);
+    SetBrakeInput(1.0f, 1.0f);
 }
 
 void UTankVehicleMovementComponent::StopMovementImmediately()
 {
+    Super::StopMovementImmediately();
+    bHasRequestedVelocity = false;
+    UPIDController::Clear(VelocityController);
+    UPIDController::Clear(HeadingController);
     SetThrottleInput(0.0f, 0.0f);
     SetBrakeInput(1.0f, 1.0f);
 }
+
+#endif

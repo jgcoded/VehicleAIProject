@@ -3,7 +3,7 @@
 #include "VehicleAIProject.h"
 #include "PIDController.h"
 
-PIDController::PIDController()
+FPIDData::FPIDData()
     : P(1.0f)
     , I(1.0f)
     , D(1.0f)
@@ -14,39 +14,24 @@ PIDController::PIDController()
 {
 }
 
-PIDController::PIDController(float PTerm, float ITerm, float DTerm, float MinResult, float MaxResult)
-    : P(PTerm)
-    , I(ITerm)
-    , D(DTerm)
-    , LowerLimit(MinResult)
-    , UpperLimit(MaxResult)
-    , Integral(0.0f)
-    , PreviousError(0.0f)
-{
-}
-
-PIDController::~PIDController()
-{
-}
-
-float PIDController::NextValue(float Error, float DeltaTime)
+float UPIDController::NextValue(FPIDData& PIDData, float Error, float DeltaTime)
 {
     float Result;
 
-    Integral += Error * DeltaTime;
+    PIDData.Integral += Error * DeltaTime;
 
-    float Derivative = (Error - PreviousError) / DeltaTime;
-    PreviousError = Error;
+    float Derivative = (Error - PIDData.PreviousError) / DeltaTime;
+    PIDData.PreviousError = Error;
 
-    Result = Error      * P +
-        Integral   * I +
-        Derivative * D;
+    Result = Error      * PIDData.P +
+        PIDData.Integral   * PIDData.I +
+        Derivative * PIDData.D;
 
-    return FMath::Clamp(Result, LowerLimit, UpperLimit);
+    return FMath::Clamp(Result, PIDData.LowerLimit, PIDData.UpperLimit);
 }
 
-void PIDController::Clear()
+void UPIDController::Clear(FPIDData& PIDData)
 {
-    Integral = 0.0f;
-    PreviousError = 0.0f;
+    PIDData.Integral = 0.0f;
+    PIDData.PreviousError = 0.0f;
 }

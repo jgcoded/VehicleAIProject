@@ -23,6 +23,12 @@ public:
     UFUNCTION(BlueprintCallable, Category = "VehicleAI")
         void SetRotationPID(float P, float I, float D, float LowerLimit, float UpperLimit);
 
+    UPROPERTY(EditAnywhere, Category = "TankAI")
+        FPIDData VelocityController;
+
+    UPROPERTY(EditAnywhere, Category = "TankAI")
+        FPIDData HeadingController;
+
 protected:
 
     /** sets variables related to current move segment */
@@ -41,9 +47,6 @@ protected:
     virtual void OnPathFinished(EPathFollowingResult::Type Result) override;
 
 private:
-
-    PIDController RotationController;
-    PIDController VelocityController;
 
     float CurrentSteering;
     float CurrentThrottle;

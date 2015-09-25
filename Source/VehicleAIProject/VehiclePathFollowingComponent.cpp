@@ -8,23 +8,39 @@
 #define EPSILON 1e-9
 
 UVehiclePathFollowingComponent::UVehiclePathFollowingComponent()
-    : VelocityController(PIDController(0.05f, 0.001f, 0.03f, -1.0f, 1.0f))
-    , RotationController(PIDController(0.05f, 0.001f, 0.0f, -1.0f, 1.0f))
-    , CurrentThrottle(0.0f)
+    : CurrentThrottle(0.0f)
     , CurrentSteering(0.0f)
     , InitialDistanceToDestination(-1.0f)
 {
+    VelocityController.P = 0.05f;
+    VelocityController.I = 0.001f;
+    VelocityController.D = 0.03f;
+    VelocityController.LowerLimit = -1.0f;
+    VelocityController.UpperLimit = 1.0f;
 
+    HeadingController.P = 0.05f;
+    HeadingController.I = 0.001f;
+    HeadingController.D = 0.0f;
+    HeadingController.LowerLimit = -1.0f;
+    HeadingController.UpperLimit = 1.0f;
 }
 
 void UVehiclePathFollowingComponent::SetVelocityPID(float P, float I, float D, float LowerLimit, float UpperLimit)
 {
-    VelocityController = PIDController(P, I, D, LowerLimit, UpperLimit);
+    VelocityController.P = P;
+    VelocityController.I = I;
+    VelocityController.D = D;
+    VelocityController.LowerLimit = LowerLimit;
+    VelocityController.UpperLimit = UpperLimit;
 }
 
 void UVehiclePathFollowingComponent::SetRotationPID(float P, float I, float D, float LowerLimit, float UpperLimit)
 {
-    RotationController = PIDController(P, I, D, LowerLimit, UpperLimit);
+    HeadingController.P = P;
+    HeadingController.I = I;
+    HeadingController.D = D;
+    HeadingController.LowerLimit = LowerLimit;
+    HeadingController.UpperLimit = UpperLimit;
 }
 
 void UVehiclePathFollowingComponent::SetMoveSegment(int32 SegmentStartIndex)
@@ -61,7 +77,7 @@ void UVehiclePathFollowingComponent::FollowPathSegment(float DeltaTime)
             float DeltaYaw = (RotatorToDestination - Owner->GetActorRotation()).Yaw;
             bool DestinationInFront = DeltaYaw - 70.0f <= EPSILON && DeltaYaw + 70.0f >= EPSILON;
 
-            float DesiredSteering = FMath::GetMappedRangeValue(FVector2D(-180.0f, 180.0f), FVector2D(-1.0f, 1.0f), DeltaYaw);
+            float DesiredSteering = FMath::GetMappedRangeValueClamped(FVector2D(-180.0f, 180.0f), FVector2D(-1.0f, 1.0f), DeltaYaw);
 
             if (!DestinationInFront && DistanceToDestination < 1e3) // reverse
                 DesiredSteering = -DesiredSteering;
@@ -69,23 +85,24 @@ void UVehiclePathFollowingComponent::FollowPathSegment(float DeltaTime)
             VehicleMoveComp->SetHandbrakeInput(false);
 
             // The DesiredSteering includes the sensed steering already
-            CurrentSteering += RotationController.NextValue(DesiredSteering - CurrentSteering, DeltaTime);
+            CurrentSteering += UPIDController::NextValue(HeadingController, DesiredSteering - CurrentSteering, DeltaTime);
             VehicleMoveComp->SetSteeringInput(CurrentSteering);
 
             float PercentDistanceLeft = DistanceToDestination / InitialDistanceToDestination;
 
             float DesiredThrottle = 0.0f;
 
+            // #TODO Turn hardcoded values into variables
             if (DestinationInFront)
                 DesiredThrottle = FMath::Clamp(PercentDistanceLeft, 0.35f, 0.8f);
             else
                 DesiredThrottle = -0.5f; // default throttle when going in reverse
 
             /* #TODO Fix Math:
-            This is a weird way of getting the PID result because DesiredThrottle is
-            misleading since it's just a ratio of distance left
+                Allow user to specify a maximum vehicle speed that the PID
+                controller should approach.
             */
-            CurrentThrottle += VelocityController.NextValue(DesiredThrottle - CurrentThrottle, DeltaTime);
+            CurrentThrottle += UPIDController::NextValue(VelocityController, DesiredThrottle - CurrentThrottle, DeltaTime);
 
             VehicleMoveComp->SetThrottleInput(CurrentThrottle);
 
@@ -158,8 +175,8 @@ void UVehiclePathFollowingComponent::OnPathFinished(EPathFollowingResult::Type R
     VehicleMoveComp->SetThrottleInput(0.0f);
     VehicleMoveComp->SetSteeringInput(0.0f);
     VehicleMoveComp->SetHandbrakeInput(true);
-    RotationController.Clear();
-    VelocityController.Clear();
+    UPIDController::Clear(VelocityController);
+    UPIDController::Clear(HeadingController);
 
     UPathFollowingComponent::OnPathFinished(Result);
 }
